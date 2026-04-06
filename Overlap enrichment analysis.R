@@ -5,7 +5,7 @@
 # Load libraries
 library(DESeq2)
 library(clusterProfiler)
-library(org.Hs.eg.db)  # Change based on organism: org.Mm.eg.db for mouse
+library(org.Hs.eg.db)
 library(enrichplot)
 library(ggplot2)
 library(dplyr)
@@ -15,8 +15,8 @@ library(readxl)
 library(writexl)
 
 # Input files
-file_DT3 <- "data/HCC_DT3_ALL.xlsx"
-file_GT3 <- "data/HCC_GT3_ALL.xlsx"
+file_DT3 <- "data/HCC38_DT3_DEG_filtered_results.xlsx"
+file_GT3 <- "data/HCC38_GT3_DEG_filtered_results.xlsx"
 
 # Output folder
 output_dir <- "DEG_pipeline_output"
@@ -24,9 +24,9 @@ if (!dir.exists(output_dir)) dir.create(output_dir)
 
 # Column names in your DEG table
 # Modify these according to your file
-gene_col   <- "external_gene_name"        # gene symbol column
-fc_col     <- "Fold.Change"      
-pval_col   <- "P.val"     # raw p-value column
+gene_col   <- "Gene"        # gene symbol column
+fc_col     <- "FC"      
+pval_col   <- "PValue"     # raw p-value column
 
 # Thresholds
 fc_cutoff <- 2              
@@ -70,6 +70,13 @@ up_GT3 <- deg_GT3 %>% filter(Regulation == "Up") %>% pull(Gene) %>% unique()
 down_DT3 <- deg_DT3 %>% filter(Regulation == "Down") %>% pull(Gene) %>% unique()
 down_GT3 <- deg_GT3 %>% filter(Regulation == "Down") %>% pull(Gene) %>% unique()
 
+# Overlaps
+overlap_up <- intersect(up_DT3, up_GT3)
+overlap_down <- intersect(down_DT3, down_GT3)
+
+cat("Overlap Up:", length(overlap_up), "\n")
+cat("Overlap Down:", length(overlap_down), "\n")
+
 # =========================
 # Venn Diagram
 # =========================
@@ -81,20 +88,20 @@ library(eulerr)
 # Downregulated Venn
 # Counts for Euler/Venn
 fit_down <- euler(c(
-  δT3 = length(down_DT3),
-  γT3 = length(down_GT3),
-  "δT3&γT3" = length(intersect(down_DT3, down_GT3))
+  "δT3&γT3" = length(overlap_down),
+  δT3 = length(down_DT3) -length(overlap_down),
+  γT3 = length(down_GT3)-length(overlap_down)
 ))
 
 # Plot
-png(file.path(output_dir, "HCC_Venn_Downregulated_aesthetic.png"),
+png(file.path(output_dir, "HCC_Venn_Downregulated_aesthetic_1.png"),
     width = 2200, height = 2200, res = 300)
 
 plot(
   fit_down,
   fills = list(fill = c("pink", "darkgreen"), alpha = 0.2),
   edges = list(col = c("pink", "darkgreen"), lwd = 8),
-  labels = list(font = 4, cex = 2.5),
+  labels = list(font = 4, cex = 2.8),
   quantities = list(cex = 2.5),
   legend = FALSE
 )
@@ -105,13 +112,13 @@ dev.off()
 # Upregulated Venn
 # Counts for Euler/Venn
 fit_up <- euler(c(
-  δT3 = length(up_DT3),
-  γT3 = length(up_GT3),
-  "δT3&γT3" = length(intersect(up_DT3, up_GT3))
+  "δT3&γT3" = length(overlap_up),
+  δT3 = length(up_DT3) -length(overlap_up),
+  γT3 = length(up_GT3)-length(overlap_up)
 ))
 
 # Plot
-png(file.path(output_dir, "HCC_Venn_Upregulated_aesthetic.png"),
+png(file.path(output_dir, "HCC_Venn_Upregulated_aesthetic_1.png"),
     width = 2200, height = 2200, res = 300)
 
 plot(
@@ -125,12 +132,10 @@ plot(
 
 dev.off()
 
-# Overlaps
-overlap_up <- intersect(up_DT3, up_GT3)
-overlap_down <- intersect(down_DT3, down_GT3)
+# =========================
+# Enrichment analysis of common genes
+# =========================
 
-cat("Overlap Up:", length(overlap_up), "\n")
-cat("Overlap Down:", length(overlap_down), "\n")
 
 convert_entrez <- function(genes) {
   bitr(
@@ -229,7 +234,7 @@ run_go_kegg_singleplot <- function(gene_list, label) {
       KEGG_top10 = kegg_df,
       Combined_plot_data = combined_df
     ),
-    file.path(output_dir, paste0("GO_KEGG_", label, "_singleplot_data.xlsx"))
+    file.path(output_dir, paste0("GO_KEGG_", label, "_singleplot_data_1.xlsx"))
   )
   
   # -------------------------
@@ -292,7 +297,7 @@ run_go_kegg_singleplot <- function(gene_list, label) {
     ) 
   
   ggsave(
-    file.path(output_dir, paste0("GO_KEGG_", label, "_singleplot.png")),
+    file.path(output_dir, paste0("GO_KEGG_", label, "_singleplot_1.png")),
     combined_plot,
     width = 5,
     height = 4,
@@ -302,8 +307,8 @@ run_go_kegg_singleplot <- function(gene_list, label) {
   return(combined_plot)
 }
 
-plot_up <- run_go_kegg_singleplot(entrez_up, "Overlap_Up")
-plot_down <- run_go_kegg_singleplot(entrez_down, "Overlap_Down")
+plot_up <- run_go_kegg_singleplot(entrez_up, "Overlap_Up_1")
+plot_down <- run_go_kegg_singleplot(entrez_down, "Overlap_Down_1")
 
 plot_up
 plot_down
